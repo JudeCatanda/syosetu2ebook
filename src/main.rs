@@ -620,16 +620,39 @@ fn main() {
 
                 for chap_i in chapter_range {
                     let chapter_link = &table_of_contents[vol_i].1[chap_i];
-                    println!(
-                        "    Downloading chapter {}/{}",
-                        chap_i + 1,
-                        table_of_contents[vol_i].1.len(),
-                    );
 
                     let sub_chapter_url_number =
                         maybe_group(re_chapter_number.captures(chapter_link), 1);
                     let sub_chapter_url = format!("{}/{}", main_url, sub_chapter_url_number);
-                    let chapter_html = get_page(&sub_chapter_url).unwrap();
+
+                    let chapter_html = {
+                        let mut try_count = 1;
+                        loop {
+                            println!(
+                                "    Downloading chapter {}/{}",
+                                chap_i + 1,
+                                table_of_contents[vol_i].1.len(),
+                            );
+                            let max_tries = 8;
+                            match get_page(&sub_chapter_url) {
+                                Err(_) => {
+                                    if try_count < max_tries {
+                                        let wait_time = try_count;
+                                        try_count += 1;
+                                        println!("Failed to download chapter.  Trying again after {} second(s).  Attempt {}/{}.", wait_time, try_count, max_tries);
+                                        std::thread::sleep(Duration::from_secs_f32(
+                                            wait_time as f32,
+                                        ));
+                                        continue;
+                                    } else {
+                                        println!("Failed to download chapter.  Aborting.");
+                                        std::process::exit(-1);
+                                    }
+                                }
+                                Ok(text) => break text,
+                            }
+                        }
+                    };
 
                     chapters.push(generate_chapter(&chapter_html, "h1"));
                 }
